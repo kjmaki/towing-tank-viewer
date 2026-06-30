@@ -34,26 +34,40 @@ function px(v) { return ML + (Math.log10(Math.max(v, 1e-15)) - XLO) / (XHI - XLO
 function py(v) { return MT + (1 - (Math.log10(Math.max(v, 1e-15)) - YLO) / (YHI - YLO)) * PH; }
 function pathOf(arr) { return arr.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(""); }
 
-const KH_ARR = Array.from({ length: 400 }, (_, i) => 0.02 + i * (16 - 0.02) / 399);
+// log-spaced kh sample: dense at small kh (where curves bend sharply), reaching
+// far enough that X = kh·tanh(kh)/(4π²) sweeps past the right edge of the chart.
+const N_KH = 500;
+const KH_ARR = Array.from({ length: N_KH }, (_, i) => {
+  const t = i / (N_KH - 1);
+  return Math.pow(10, Math.log10(0.01) + t * (Math.log10(60) - Math.log10(0.01)));
+});
+
+function micheXY(u, fraction) {
+  const th = Math.tanh(u);
+  const X = (u * th) / (4 * PI * PI);
+  const Y = (fraction * 0.142 * th * 2 * PI * X) / u; // H/L = fraction·0.142·tanh(kh)
+  return [X, Y];
+}
 
 function micheCurve(fraction) {
   const pts = [];
   for (const u of KH_ARR) {
-    const th = Math.tanh(u);
-    const X = (u * th) / (4 * PI * PI);
-    const Y = (fraction * 0.142 * th * 2 * PI * X) / u; // H/L = fraction·0.142·tanh(kh)
+    const [X, Y] = micheXY(u, fraction);
     if (X > 9e-5 && X < 1.05 && Y > 9e-5 && Y < 0.13) pts.push([px(X), py(Y)]);
   }
   return pts;
 }
 
 const CNOIDAL_PTS = (() => {
-  // Ursell number Hλ²/d³ = 26 boundary: Y = 26·u²·X/(4π²)
+  // Ursell number Hλ²/d³ = 26 boundary: Y = 26·u²·X/(4π²).
+  // Only meaningful below the breaking limit — stop once it would cross above Miche.
   const pts = [];
-  for (const u of KH_ARR.filter((u) => u < 3.5)) {
+  for (const u of KH_ARR) {
     const th = Math.tanh(u);
     const X = (u * th) / (4 * PI * PI);
     const Y = (26 * u * u * X) / (4 * PI * PI);
+    const [, Ymiche] = micheXY(u, 1.0);
+    if (Y >= Ymiche) break;
     if (X > 9e-5 && X < 1.05 && Y > 9e-5 && Y < 0.13) pts.push([px(X), py(Y)]);
   }
   return pts;
@@ -111,25 +125,21 @@ function LeMeHauteDiagram({ xDim, yDim }) {
 
       {/* theory boundary curves */}
       <path d={pathOf(MICHE_PTS)} fill="none" stroke="#c0504d" strokeWidth="2.5" />
-      <path d={pathOf(SHALLOW_PTS)} fill="none" stroke="#e07830" strokeWidth="2.5" />
+      <path d={pathOf(SHALLOW_PTS)} fill="none" stroke="#e0a830" strokeWidth="2" />
       <path d={pathOf(STOKES5_PTS)} fill="none" stroke="#7a9ccf" strokeWidth="1.4" strokeDasharray="7,3" />
       <path d={pathOf(STOKES3_PTS)} fill="none" stroke="#5a80b8" strokeWidth="1.4" strokeDasharray="7,3" />
       <path d={pathOf(STOKES2_PTS)} fill="none" stroke="#4a6aa0" strokeWidth="1.4" strokeDasharray="7,3" />
       <path d={pathOf(CNOIDAL_PTS)} fill="none" stroke="#3ba776" strokeWidth="1.4" strokeDasharray="4,4" />
 
-      {/* region labels */}
-      <text x={px(0.25)} y={py(6e-4)} fill="#3a4d70" fontSize="11.5" textAnchor="middle">Linear wave theory (Airy)</text>
-      <text x={px(0.035)} y={py(2.1e-3)} fill="#4a6694" fontSize="9.5" textAnchor="middle">Stokes 2nd</text>
-      <text x={px(0.085)} y={py(6.8e-3)} fill="#5a7aac" fontSize="9.5" textAnchor="middle">Stokes 3rd</text>
-      <text x={px(0.14)} y={py(1.55e-2)} fill="#88aee0" fontSize="9.5" textAnchor="middle">Stokes 5th</text>
-      <text x={px(7e-4)} y={py(2.2e-4)} fill="#2f8a64" fontSize="9.5" textAnchor="start">Cnoidal waves</text>
+      {/* region labels — centered in the (constant-ratio) gaps between curves */}
+      <text x={px(0.3)} y={py(7e-4)} fill="#3a4d70" fontSize="11.5" textAnchor="middle">Linear wave theory (Airy)</text>
+      <text x={px(0.03)} y={py(1.57e-3)} fill="#4a6694" fontSize="9.5" textAnchor="middle">Stokes 2nd</text>
+      <text x={px(0.075)} y={py(4.77e-3)} fill="#5a7aac" fontSize="9.5" textAnchor="middle">Stokes 3rd</text>
+      <text x={px(0.13)} y={py(1.196e-2)} fill="#88aee0" fontSize="9.5" textAnchor="middle">Stokes 5th</text>
+      <text x={px(6e-4)} y={py(1.7e-4)} fill="#2f8a64" fontSize="9.5" textAnchor="start">Cnoidal waves</text>
       <text x={px(0.22)} y={py(2.8e-2) - 5} fill="#c0504d" fontSize="9.5" textAnchor="middle">deep water breaking · H/λ = 0.142</text>
-      <text
-        x={px(1.1e-3)} y={py(8.5e-4)}
-        fill="#e07830" fontSize="9" textAnchor="start"
-        transform={`rotate(-42, ${px(1.1e-3)}, ${py(8.5e-4)})`}
-      >
-        shallow / solitary breaking · H/d = 0.78
+      <text x={px(0.1)} y={py(0.078) - 7} fill="#e0a830" fontSize="9.5" textAnchor="end">
+        shallow/solitary breaking · H/d = 0.78
       </text>
 
       {/* axes box */}
