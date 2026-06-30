@@ -58,32 +58,6 @@ function micheCurve(fraction) {
   return pts;
 }
 
-const CNOIDAL_PTS = (() => {
-  // Ursell number Hλ²/d³ = 26 boundary: Y = 26·u²·X/(4π²).
-  // Only meaningful below the breaking limit — stop once it would cross above Miche.
-  const pts = [];
-  for (const u of KH_ARR) {
-    const th = Math.tanh(u);
-    const X = (u * th) / (4 * PI * PI);
-    const Y = (26 * u * u * X) / (4 * PI * PI);
-    const [, Ymiche] = micheXY(u, 1.0);
-    if (Y >= Ymiche) break;
-    if (X > 9e-5 && X < 1.05 && Y > 9e-5 && Y < 0.13) pts.push([px(X), py(Y)]);
-  }
-  return pts;
-})();
-
-const SHALLOW_PTS = (() => {
-  // Solitary-wave / shallow breaking limit: H/d = 0.78
-  const pts = [];
-  for (let i = 0; i <= 200; i++) {
-    const X = Math.pow(10, XLO + (i * 3) / 200);
-    const Y = 0.78 * X;
-    if (Y > 9e-5 && Y < 0.13) pts.push([px(X), py(Y)]);
-  }
-  return pts;
-})();
-
 const MICHE_PTS = micheCurve(1.0);
 const STOKES5_PTS = micheCurve(0.8);
 const STOKES3_PTS = micheCurve(0.35);
@@ -125,22 +99,16 @@ function LeMeHauteDiagram({ xDim, yDim }) {
 
       {/* theory boundary curves */}
       <path d={pathOf(MICHE_PTS)} fill="none" stroke="#c0504d" strokeWidth="2.5" />
-      <path d={pathOf(SHALLOW_PTS)} fill="none" stroke="#e0a830" strokeWidth="2" />
       <path d={pathOf(STOKES5_PTS)} fill="none" stroke="#7a9ccf" strokeWidth="1.4" strokeDasharray="7,3" />
       <path d={pathOf(STOKES3_PTS)} fill="none" stroke="#5a80b8" strokeWidth="1.4" strokeDasharray="7,3" />
       <path d={pathOf(STOKES2_PTS)} fill="none" stroke="#4a6aa0" strokeWidth="1.4" strokeDasharray="7,3" />
-      <path d={pathOf(CNOIDAL_PTS)} fill="none" stroke="#3ba776" strokeWidth="1.4" strokeDasharray="4,4" />
 
       {/* region labels — centered in the (constant-ratio) gaps between curves */}
       <text x={px(0.3)} y={py(7e-4)} fill="#3a4d70" fontSize="11.5" textAnchor="middle">Linear wave theory (Airy)</text>
       <text x={px(0.03)} y={py(1.57e-3)} fill="#4a6694" fontSize="9.5" textAnchor="middle">Stokes 2nd</text>
       <text x={px(0.075)} y={py(4.77e-3)} fill="#5a7aac" fontSize="9.5" textAnchor="middle">Stokes 3rd</text>
       <text x={px(0.13)} y={py(1.196e-2)} fill="#88aee0" fontSize="9.5" textAnchor="middle">Stokes 5th</text>
-      <text x={px(6e-4)} y={py(1.7e-4)} fill="#2f8a64" fontSize="9.5" textAnchor="start">Cnoidal waves</text>
       <text x={px(0.22)} y={py(2.8e-2) - 5} fill="#c0504d" fontSize="9.5" textAnchor="middle">deep water breaking · H/λ = 0.142</text>
-      <text x={px(0.1)} y={py(0.078) - 7} fill="#e0a830" fontSize="9.5" textAnchor="end">
-        shallow/solitary breaking · H/d = 0.78
-      </text>
 
       {/* axes box */}
       <rect x={ML} y={MT} width={PW} height={PH} fill="none" stroke="#2a3a5a" strokeWidth="1.5" />
@@ -275,11 +243,9 @@ export default function WaveConditions() {
     // Le Méhauté diagram coordinates and applicable-theory classification
     const xDim = H_DEPTH / (G * Tv * Tv);
     const yDim = Hv / (G * Tv * Tv);
-    const ursell = (4 * PI * PI * yDim) / (kh * kh * xDim);
 
     let theory;
     if (pct >= 100) theory = "breaking";
-    else if (kh < 1.5 && ursell > 26) theory = "cnoidal / shallow";
     else if (pct >= 80) theory = "Stokes 5th order";
     else if (pct >= 35) theory = "Stokes 3rd order";
     else if (pct >= 13) theory = "Stokes 2nd order";
@@ -355,8 +321,9 @@ export default function WaveConditions() {
           <div style={S.eyebrow}>Applicable Wave Theory</div>
           <h1 style={S.h1}>Le Méhauté (1976) diagram</h1>
           <div style={S.diagramTitle}>
-            Region boundaries computed from linear dispersion; deep-water breaking (Miche 1954),
-            shallow/solitary breaking, and Stokes/cnoidal limits (Ursell number ≈ 26).
+            Region boundaries computed from linear dispersion theory, with deep-water breaking
+            from the Miche (1954) criterion. <em style={{ fontStyle: "normal", color: "#8b96ac" }}>
+              d</em> is the still-water depth (here d = {H_DEPTH} m).
           </div>
           <LeMeHauteDiagram xDim={calc.xDim} yDim={calc.yDim} />
           <div style={S.regionTag}>
