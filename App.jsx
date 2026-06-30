@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import WaveBasinField from './WaveBasinField.jsx'
 import DirectionalSeaField from './DirectionalSeaField.jsx'
+import WaveConditions from './WaveConditions.jsx'
 
 const btn = {
   background: 'none', border: '1px solid #2a3346', color: '#8b96ac',
@@ -19,8 +20,13 @@ export default function App() {
         <button style={tab === 'sea' ? activeBtn : btn} onClick={() => setTab('sea')}>
           Irregular Waves
         </button>
+        <button style={tab === 'conditions' ? activeBtn : btn} onClick={() => setTab('conditions')}>
+          Wave Conditions
+        </button>
       </div>
-      {tab === 'wave' ? <WaveBasinField /> : <DirectionalSeaField />}
+      {tab === 'wave' && <WaveBasinField />}
+      {tab === 'sea' && <DirectionalSeaField />}
+      {tab === 'conditions' && <WaveConditions />}
     </div>
   )
 }
