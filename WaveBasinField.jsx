@@ -290,7 +290,7 @@ export default function WaveBasinField() {
       <header style={S.header}>
         <div>
           <div style={S.eyebrow}>DIRECTIONAL WAVEMAKER · SIDEWALL-REFLECTION FIELD</div>
-          <h1 style={S.h1}>Wave basin <span style={{ color: "#6aa9ff" }}>η(x, y, t)</span></h1>
+          <h1 style={S.h1}>Towing tank <span style={{ color: "#6aa9ff" }}>η(x, y, t)</span></h1>
         </div>
         <div style={S.tankspec}>
           100 × 6.6 m · h = 3 m<br />
