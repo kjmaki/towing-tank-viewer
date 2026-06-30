@@ -392,6 +392,7 @@ export default function DirectionalSeaField() {
             </svg>
           )}
           <div style={S.insetFoot}><span style={{ color: "#3ba776" }}>▮</span> resolved · <span style={{ color: "#c0504d" }}>▮</span> below cutoff · <span style={{ color: "#f0c674" }}>│</span> mean</div>
+          <div style={{...S.insetFoot, marginTop: 3}}>s ≈ 2/σ² − 1 &nbsp;(σ in rad) &nbsp;→&nbsp; s = {sea ? sea.sExp.toFixed(1) : "—"}</div>
         </div>
       </div>
 
@@ -408,7 +409,8 @@ export default function DirectionalSeaField() {
         <Slider label="sig. wave height Hs" unit="cm" min={2} max={40} step={1} value={Math.round(Hs * 100)} onChange={(v) => setHs(v / 100)} note="sets η scale" />
         <Slider label="peak period Tp" unit="s" min={0.7} max={2.2} step={0.05} value={Tp} onChange={setTp} note={sea ? `λp = ${sea.Lp.toFixed(2)} m` : ""} />
         <Slider label="peakedness γ" unit="" min={1} max={7} step={0.1} value={gamma} onChange={setGamma} note="JONSWAP" />
-        <Slider label="directional spread σ" unit="°" min={0} max={30} step={1} value={sigmaDeg} onChange={setSigma} note="cos²ˢ half-width" />
+        <Slider label="directional spread σ" unit="°" min={0} max={30} step={1} value={sigmaDeg} onChange={setSigma}
+          note={sea ? `s = ${sea.sExp.toFixed(1)}  (exponent in cos²ˢ,  s ≈ 2/σ² − 1)` : "cos²ˢ spread"} />
         <Slider label="mean heading θ₀" unit="°" min={0} max={30} step={1} value={theta0Deg} onChange={setTheta0} note="off tank axis" />
         <Slider label="view length" unit="m" min={8} max={60} step={1} value={xMax} onChange={setXMax} note="x-window" />
 
