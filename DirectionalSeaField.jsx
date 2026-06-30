@@ -318,7 +318,7 @@ export default function DirectionalSeaField() {
       <header style={S.header}>
         <div>
           <div style={S.eyebrow}>DIRECTIONAL IRREGULAR SEA · TANK RESPONSE</div>
-          <h1 style={S.h1}>Spread sea <span style={{ color: "#6aa9ff" }}>η(x, y, t)</span></h1>
+          <h1 style={S.h1}>Short-crested sea <span style={{ color: "#6aa9ff" }}>η(x, y, t)</span></h1>
         </div>
         <div style={S.tankspec}>JONSWAP × cos²ˢ<br /><span style={{ color: "#7d8aa0" }}>100 × 6.6 m · h = 3 m</span></div>
       </header>
