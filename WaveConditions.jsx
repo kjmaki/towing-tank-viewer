@@ -45,6 +45,22 @@ const SEA_STATES = {
   ],
 };
 
+// ── Figure axis mapping ───────────────────────────────────────────────
+// Derived from matplotlib ax.get_position() after tight_layout on figsize=(8,6).
+// Normalised to a 800×600 viewBox (same 4:3 ratio as the figure, so SVG circles stay circular).
+const FAX = {
+  left:   0.101597 * 800,
+  right:  0.973437 * 800,
+  top:    (1 - 0.962500) * 600,
+  bottom: (1 - 0.115463) * 600,
+};
+function figXY(T, H) {
+  return [
+    FAX.left  + (T / 5.0) * (FAX.right - FAX.left),
+    FAX.bottom - (H / 0.6) * (FAX.bottom - FAX.top),
+  ];
+}
+
 // ── Styles ────────────────────────────────────────────────────────────
 const S = {
   page: {
@@ -288,6 +304,15 @@ export default function WaveConditions() {
              depthClass, depthColor, gaugeColor, urNumber, piHoverL, theory };
   }, [Tv, Hv]);
 
+  const irrCalc = useMemo(() => {
+    const entry = SEA_STATES[ocean][ssIdx];
+    const lam = parseFloat(lambda);
+    if (!(lam > 0)) return null;
+    const hsVal = customHs && parseFloat(customHs) > 0 ? parseFloat(customHs) : entry.Hs;
+    const tpVal = customTp && parseFloat(customTp) > 0 ? parseFloat(customTp) : entry.Tp;
+    return { Hs: hsVal / lam, Tp: tpVal / Math.sqrt(lam) };
+  }, [ocean, ssIdx, lambda, customHs, customTp]);
+
   return (
     <div style={S.page}>
 
@@ -354,11 +379,50 @@ export default function WaveConditions() {
         <div style={S.diagramTitle}>
           Regular and irregular performance envelopes with breaking limit and depth regime boundaries.
         </div>
-        <img
-          src={`${import.meta.env.BASE_URL}comparison-wave-regimes.png`}
-          alt="Wavemaker performance envelope"
-          style={{ width: "100%", borderRadius: 8, display: "block" }}
-        />
+        <div style={{ position: "relative" }}>
+          <img
+            src={`${import.meta.env.BASE_URL}comparison-wave-regimes.png`}
+            alt="Wavemaker performance envelope"
+            style={{ width: "100%", borderRadius: 8, display: "block" }}
+          />
+          <svg
+            viewBox="0 0 800 600"
+            preserveAspectRatio="none"
+            style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}
+          >
+            <defs>
+              <clipPath id="fig-clip">
+                <rect x={FAX.left} y={FAX.top} width={FAX.right - FAX.left} height={FAX.bottom - FAX.top}/>
+              </clipPath>
+            </defs>
+            <g clipPath="url(#fig-clip)">
+              {calc && (() => {
+                const [cx, cy] = figXY(Tv, Hv);
+                return (
+                  <g>
+                    <line x1={cx-14} y1={cy} x2={cx+14} y2={cy} stroke="#1E90FF" strokeWidth={3}/>
+                    <line x1={cx} y1={cy-14} x2={cx} y2={cy+14} stroke="#1E90FF" strokeWidth={3}/>
+                    <circle cx={cx} cy={cy} r={8} fill="#1E90FF" stroke="#0a0e1a" strokeWidth={2.5}/>
+                    <text x={cx+14} y={cy-6} fill="#1E90FF" fontSize={15} fontFamily="sans-serif"
+                          fontStyle="italic" stroke="#ffffff" strokeWidth={3} paintOrder="stroke">regular</text>
+                  </g>
+                );
+              })()}
+              {irrCalc && (() => {
+                const [cx, cy] = figXY(irrCalc.Tp, irrCalc.Hs);
+                return (
+                  <g>
+                    <line x1={cx-14} y1={cy} x2={cx+14} y2={cy} stroke="#9932CC" strokeWidth={3}/>
+                    <line x1={cx} y1={cy-14} x2={cx} y2={cy+14} stroke="#9932CC" strokeWidth={3}/>
+                    <circle cx={cx} cy={cy} r={8} fill="#9932CC" stroke="#0a0e1a" strokeWidth={2.5}/>
+                    <text x={cx+14} y={cy+22} fill="#9932CC" fontSize={15} fontFamily="sans-serif"
+                          fontStyle="italic" stroke="#ffffff" strokeWidth={3} paintOrder="stroke">irregular</text>
+                  </g>
+                );
+              })()}
+            </g>
+          </svg>
+        </div>
         {calc && (
           <div style={S.regionTag}>
             current condition → <span style={{ color: calc.gaugeColor }}>{calc.theory}</span>
