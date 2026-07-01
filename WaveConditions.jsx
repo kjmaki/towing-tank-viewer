@@ -45,6 +45,24 @@ const SEA_STATES = {
   ],
 };
 
+// ── ITTC (2014) sea state regions ────────────────────────────────────
+// Hs ranges from ITTC Recommended Procedures and Guidelines, Table 1 (2014).
+// Tp range spans both N. Atlantic and N. Pacific representative values so the
+// box always encompasses both oceans; dot lands on the left (Atlantic) or
+// right (Pacific) edge depending on ocean selection.
+const SS_ITTC_HS = { 3: [0.5, 1.25], 4: [1.25, 2.5], 5: [2.5, 4.0], 6: [4.0, 6.0], 7: [6.0, 9.0] };
+const SS_COLORS  = { 3: "#66BB6A",   4: "#D4E157",   5: "#FFA726",   6: "#FF7043",  7: "#EF5350"  };
+const SS_REGIONS = [3, 4, 5, 6, 7].map(ss => {
+  const atl = SEA_STATES["N. Atlantic"][ss - 1];
+  const pac = SEA_STATES["N. Pacific"][ss - 1];
+  return {
+    ss,
+    HsMin: SS_ITTC_HS[ss][0], HsMax: SS_ITTC_HS[ss][1],
+    TpMin: Math.min(atl.Tp, pac.Tp), TpMax: Math.max(atl.Tp, pac.Tp),
+    color: SS_COLORS[ss],
+  };
+});
+
 // ── Figure axis mapping ───────────────────────────────────────────────
 // Derived from matplotlib ax.get_position() after tight_layout on figsize=(8,6).
 // Normalised to a 800×600 viewBox (same 4:3 ratio as the figure, so SVG circles stay circular).
@@ -395,6 +413,23 @@ export default function WaveConditions() {
               </clipPath>
             </defs>
             <g clipPath="url(#fig-clip)">
+              {/* ITTC sea state regions scaled by λ */}
+              {SS_REGIONS.map(({ ss, HsMin, HsMax, TpMin, TpMax, color }) => {
+                const lam = parseFloat(lambda);
+                if (!(lam > 0)) return null;
+                const [x1] = figXY(TpMin / Math.sqrt(lam), 0);
+                const [x2] = figXY(TpMax / Math.sqrt(lam), 0);
+                const [, yTop] = figXY(0, HsMax / lam);
+                const [, yBot] = figXY(0, HsMin / lam);
+                return (
+                  <g key={ss}>
+                    <rect x={x1} y={yTop} width={x2 - x1} height={yBot - yTop}
+                          fill={color} fillOpacity={0.2} stroke={color} strokeWidth={1.5} strokeOpacity={0.7}/>
+                    <text x={x1 + 5} y={yTop + 16} fill={color} fontSize={14} fontFamily="sans-serif"
+                          fontStyle="italic" stroke="#ffffff" strokeWidth={3} paintOrder="stroke">SS{ss}</text>
+                  </g>
+                );
+              })}
               {calc && (() => {
                 const [cx, cy] = figXY(Tv, Hv);
                 return (
@@ -427,6 +462,9 @@ export default function WaveConditions() {
             current condition → <span style={{ color: calc.gaugeColor }}>{calc.theory}</span>
           </div>
         )}
+        <div style={{ fontSize: 10, color: "#4a6080", marginTop: 8 }}>
+          Sea state regions: Hs per ITTC (2014) Recommended Procedures &amp; Guidelines, Table 1; Tp spans N. Atlantic → N. Pacific. Froude-scaled 1:λ.
+        </div>
       </div>
 
       {/* ── Irregular Seas ────────────────────────────────────────── */}
