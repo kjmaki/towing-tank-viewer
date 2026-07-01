@@ -47,21 +47,16 @@ const SEA_STATES = {
 
 // ── ITTC (2014) sea state regions ────────────────────────────────────
 // Hs ranges from ITTC Recommended Procedures and Guidelines, Table 1 (2014).
-// Tp range spans both N. Atlantic and N. Pacific representative values so the
-// box always encompasses both oceans; dot lands on the left (Atlantic) or
-// right (Pacific) edge depending on ocean selection.
-const SS_ITTC_HS = { 3: [0.5, 1.25], 4: [1.25, 2.5], 5: [2.5, 4.0], 6: [4.0, 6.0], 7: [6.0, 9.0] };
-const SS_COLORS  = { 3: "#66BB6A",   4: "#D4E157",   5: "#FFA726",   6: "#FF7043",  7: "#EF5350"  };
-const SS_REGIONS = [3, 4, 5, 6, 7].map(ss => {
-  const atl = SEA_STATES["N. Atlantic"][ss - 1];
-  const pac = SEA_STATES["N. Pacific"][ss - 1];
-  return {
-    ss,
-    HsMin: SS_ITTC_HS[ss][0], HsMax: SS_ITTC_HS[ss][1],
-    TpMin: Math.min(atl.Tp, pac.Tp), TpMax: Math.max(atl.Tp, pac.Tp),
-    color: SS_COLORS[ss],
-  };
-});
+// TpHalf is the half-width of the ITTC modal period range for each SS;
+// the Tp box is centered on the selected ocean's representative Tp so the
+// dot always sits at the center. Switching ocean shifts the boxes.
+const SS_REGIONS = [
+  { ss: 3, HsMin: 0.5,  HsMax: 1.25, TpHalf: 3.0, color: "#66BB6A" },
+  { ss: 4, HsMin: 1.25, HsMax: 2.5,  TpHalf: 3.0, color: "#D4E157" },
+  { ss: 5, HsMin: 2.5,  HsMax: 4.0,  TpHalf: 3.0, color: "#FFA726" },
+  { ss: 6, HsMin: 4.0,  HsMax: 6.0,  TpHalf: 3.5, color: "#FF7043" },
+  { ss: 7, HsMin: 6.0,  HsMax: 9.0,  TpHalf: 4.0, color: "#EF5350" },
+];
 
 // ── Figure axis mapping ───────────────────────────────────────────────
 // Derived from matplotlib ax.get_position() after tight_layout on figsize=(8,6).
@@ -414,11 +409,12 @@ export default function WaveConditions() {
             </defs>
             <g clipPath="url(#fig-clip)">
               {/* ITTC sea state regions scaled by λ */}
-              {SS_REGIONS.map(({ ss, HsMin, HsMax, TpMin, TpMax, color }) => {
+              {SS_REGIONS.map(({ ss, HsMin, HsMax, TpHalf, color }) => {
                 const lam = parseFloat(lambda);
                 if (!(lam > 0)) return null;
-                const [x1] = figXY(TpMin / Math.sqrt(lam), 0);
-                const [x2] = figXY(TpMax / Math.sqrt(lam), 0);
+                const repTp = SEA_STATES[ocean][ss - 1].Tp;
+                const [x1] = figXY((repTp - TpHalf) / Math.sqrt(lam), 0);
+                const [x2] = figXY((repTp + TpHalf) / Math.sqrt(lam), 0);
                 const [, yTop] = figXY(0, HsMax / lam);
                 const [, yBot] = figXY(0, HsMin / lam);
                 return (
@@ -463,7 +459,7 @@ export default function WaveConditions() {
           </div>
         )}
         <div style={{ fontSize: 10, color: "#4a6080", marginTop: 8 }}>
-          Sea state regions: Hs per ITTC (2014) Recommended Procedures &amp; Guidelines, Table 1; Tp spans N. Atlantic → N. Pacific. Froude-scaled 1:λ.
+          Sea state regions: Hs per ITTC (2014) Recommended Procedures &amp; Guidelines, Table 1; Tp centered on selected ocean's representative value ± ITTC range half-width. Froude-scaled 1:λ.
         </div>
       </div>
 
