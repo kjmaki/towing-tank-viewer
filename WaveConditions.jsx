@@ -276,7 +276,7 @@ export default function WaveConditions() {
 
     const dOverL = H_DEPTH / L;
     const HoverL = Hv / L;
-    const steepnessBreak = 0.142 * Math.tanh(2 * PI * dOverL); // Miche (1944)
+    const steepnessBreak = 0.1 * Math.tanh(2 * PI * dOverL);
     const pct = (HoverL / steepnessBreak) * 100;
     const urNumber = HoverL / (dOverL * dOverL * dOverL);       // Ur = HL²/d³
     const piHoverL = PI * HoverL;
@@ -343,13 +343,12 @@ export default function WaveConditions() {
             <hr style={S.divider} />
             <div style={S.grid}>
               <Stat label="Wavenumber k"       value={calc.k.toFixed(4)}       unit="rad/m" />
-              <Stat label="Wavelength L"       value={calc.L.toFixed(2)}       unit="m" />
+              <Stat label="Wavelength λ"       value={calc.L.toFixed(2)}       unit="m" />
               <Stat label="Phase speed c"      value={calc.c.toFixed(3)}       unit="m/s" />
               <Stat label="Shallowness kd"     value={calc.kh.toFixed(3)}      note={calc.depthClass} />
-              <Stat label="Steepness H/L"      value={calc.HoverL.toFixed(5)} />
-              <Stat label="Breaking limit H/L" value={calc.steepnessBreak.toFixed(5)} note="Miche (1944)" />
+              <Stat label="Steepness H/λ"      value={calc.HoverL.toFixed(5)} note={`limit = 0.1·tanh(kd) = ${calc.steepnessBreak.toFixed(5)}`} />
               <Stat label="Ursell number Ur"   value={calc.urNumber < 9999 ? calc.urNumber.toFixed(1) : ">9999"} />
-              <Stat label="Relative depth d/L" value={calc.dOverL.toFixed(4)} />
+              <Stat label="Relative depth d/λ" value={calc.dOverL.toFixed(4)} />
             </div>
 
             <div style={S.gauge}>
