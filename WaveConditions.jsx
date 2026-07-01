@@ -19,233 +19,31 @@ function solveK(omega) {
   return k;
 }
 
-// ── Wave theory validity diagram ──────────────────────────────────────
-// x = d/L (relative depth, log), y = H/L (steepness, log)
-// Ur = H·L²/d³ = (H/L)/(d/L)³   →   lines Ur=const are H/L = Ur·(d/L)³
-// Breaking (Miche 1944): H/L = 0.142·tanh(2π·d/L)
-// Linear valid: π·H/L < 0.1  AND  Ur < 1
-// Stokes 5th valid: Ur < 30
-
-const ML = 68, MR = 24, MT = 28, MB = 54;
-const SVG_W = 560, SVG_H = 440;
-const PW = SVG_W - ML - MR;   // 468
-const PH = SVG_H - MT - MB;   // 358
-const XLO = -3, XHI = 0;      // d/L: 0.001 → 1
-const YLO = -3, YHI = -0.8;   // H/L: 0.001 → ~0.16
-
-function px(v) { return ML + (Math.log10(Math.max(v, 1e-15)) - XLO) / (XHI - XLO) * PW; }
-function py(v) { return MT + (1 - (Math.log10(Math.max(v, 1e-15)) - YLO) / (YHI - YLO)) * PH; }
-function pathOf(arr) {
-  return arr.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join("");
-}
-
-const N = 600;
-const DL_ARR = Array.from({ length: N }, (_, i) =>
-  Math.pow(10, -3 + (i / (N - 1)) * 3)
-);
-
-// Breaking limit
-const MICHE_PTS = (() => {
-  const pts = [];
-  for (const x of DL_ARR) {
-    const y = 0.142 * Math.tanh(2 * PI * x);
-    if (x >= 1e-3 && x <= 1.01 && y >= 1e-3 && y <= 0.17) pts.push([px(x), py(y)]);
-  }
-  return pts;
-})();
-
-// Ursell curves: H/L = Ur·(d/L)³, clipped at breaking
-function ursellCurve(Ur) {
-  const pts = [];
-  for (const x of DL_ARR) {
-    const y = Ur * x * x * x;
-    if (y >= 0.142 * Math.tanh(2 * PI * x)) break;
-    if (x >= 1e-3 && x <= 1.01 && y >= 1e-3 && y <= 0.17) pts.push([px(x), py(y)]);
-  }
-  return pts;
-}
-
-// Linear/Airy boundary: min(π·H/L = 0.1, Ur = 1)
-//   kH/2 < 0.1  →  H/L < 0.1/π  ≈ 0.0318  (flat in deep water)
-//   Ur   < 1    →  H/L < (d/L)³             (steep in shallow water)
-const LINEAR_PTS = (() => {
-  const pts = [];
-  for (const x of DL_ARR) {
-    const y = Math.min(0.1 / PI, x * x * x);
-    if (x >= 1e-3 && x <= 1.01 && y >= 1e-3 && y <= 0.17) pts.push([px(x), py(y)]);
-  }
-  return pts;
-})();
-
-const UR30_PTS = ursellCurve(30);
-
-// ── Region fills (painter's algorithm: back → front) ──────────────────
-
-// 1. Stokes region = everything below Miche
-const STOKES_FILL = (() => {
-  if (MICHE_PTS.length < 2) return "";
-  const first = MICHE_PTS[0], last = MICHE_PTS[MICHE_PTS.length - 1];
-  return [
-    ...MICHE_PTS.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`),
-    `L${last[0].toFixed(1)},${(MT + PH).toFixed(1)}`,
-    `L${first[0].toFixed(1)},${(MT + PH).toFixed(1)}`,
-    "Z",
-  ].join("");
-})();
-
-// 2. Linear region = below LINEAR_PTS
-const LINEAR_FILL = (() => {
-  if (LINEAR_PTS.length < 2) return "";
-  const first = LINEAR_PTS[0], last = LINEAR_PTS[LINEAR_PTS.length - 1];
-  return [
-    ...LINEAR_PTS.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`),
-    `L${last[0].toFixed(1)},${(MT + PH).toFixed(1)}`,
-    `L${first[0].toFixed(1)},${(MT + PH).toFixed(1)}`,
-    "Z",
-  ].join("");
-})();
-
-// 3. Cnoidal region = between Ur=30 and Miche (left portion where Ur30 < Miche)
-const CNOIDAL_FILL = (() => {
-  if (UR30_PTS.length < 2) return "";
-  const maxPx = UR30_PTS[UR30_PTS.length - 1][0];
-  const micheClip = MICHE_PTS.filter(p => p[0] <= maxPx + 2);
-  if (micheClip.length < 2) return "";
-  const rev = [...UR30_PTS].reverse();
-  return [
-    ...micheClip.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`),
-    ...rev.map(p => `L${p[0].toFixed(1)},${p[1].toFixed(1)}`),
-    "Z",
-  ].join("");
-})();
-
-// 4. Breaking region = above Miche
-const BREAKING_FILL = (() => {
-  if (MICHE_PTS.length < 2) return "";
-  const first = MICHE_PTS[0], last = MICHE_PTS[MICHE_PTS.length - 1];
-  return [
-    ...MICHE_PTS.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`),
-    `L${last[0].toFixed(1)},${MT.toFixed(1)}`,
-    `L${first[0].toFixed(1)},${MT.toFixed(1)}`,
-    "Z",
-  ].join("");
-})();
-
-const SUP = { "-": "⁻", 0: "⁰", 1: "¹", 2: "²", 3: "³", 4: "⁴" };
-function expLabel(e) {
-  if (e === 0) return "1";
-  return "10" + String(e).split("").map((c) => SUP[c] ?? c).join("");
-}
-
-function WaveTheoryDiagram({ dOverL, HoverL }) {
-  const dotX = dOverL != null ? px(dOverL) : null;
-  const dotY = HoverL  != null ? py(HoverL)  : null;
-  const inPlot =
-    dotX != null && dotX >= ML && dotX <= ML + PW &&
-    dotY != null && dotY >= MT && dotY <= MT + PH;
-
-  const xTicks = [1e-3, 1e-2, 1e-1, 1e0];
-  const yTicks = [1e-3, 1e-2, 1e-1];
-
-  return (
-    <svg
-      viewBox={`0 0 ${SVG_W} ${SVG_H}`}
-      style={{ width: "100%", maxWidth: SVG_W, display: "block", background: "#0a0e1a", borderRadius: 8 }}
-    >
-      {/* region fills — back to front */}
-      <path d={STOKES_FILL}  fill="#4a7abf" fillOpacity="0.13" />
-      <path d={LINEAR_FILL}  fill="#c8a830" fillOpacity="0.13" />
-      <path d={CNOIDAL_FILL} fill="#3ba776" fillOpacity="0.18" />
-      <path d={BREAKING_FILL} fill="#c0504d" fillOpacity="0.20" />
-
-      {/* major grid */}
-      {xTicks.map((v) => (
-        <line key={`gx${v}`} x1={px(v)} y1={MT} x2={px(v)} y2={MT + PH} stroke="#1a2844" strokeWidth="1" />
-      ))}
-      {yTicks.map((v) => (
-        <line key={`gy${v}`} x1={ML} y1={py(v)} x2={ML + PW} y2={py(v)} stroke="#1a2844" strokeWidth="1" />
-      ))}
-      {/* minor grid */}
-      {[-2.5, -1.5, -0.5].map((e) => (
-        <line key={`mx${e}`} x1={px(10 ** e)} y1={MT} x2={px(10 ** e)} y2={MT + PH} stroke="#121a2c" strokeWidth="1" />
-      ))}
-      {[-2.5, -1.5].map((e) => (
-        <line key={`my${e}`} x1={ML} y1={py(10 ** e)} x2={ML + PW} y2={py(10 ** e)} stroke="#121a2c" strokeWidth="1" />
-      ))}
-
-      {/* depth reference lines: d/L = 0.05 (shallow) and d/L = 0.5 (deep) */}
-      <line x1={px(0.5)}  y1={MT} x2={px(0.5)}  y2={MT + PH} stroke="#3a4f6a" strokeWidth="1" strokeDasharray="5,4" />
-      <line x1={px(0.05)} y1={MT} x2={px(0.05)} y2={MT + PH} stroke="#3a4f6a" strokeWidth="1" strokeDasharray="5,4" />
-
-      {/* theory boundary curves */}
-      <path d={pathOf(MICHE_PTS)}  fill="none" stroke="#c0504d" strokeWidth="2.5" />
-      <path d={pathOf(UR30_PTS)}   fill="none" stroke="#3ba776" strokeWidth="1.8" strokeDasharray="7,3" />
-      <path d={pathOf(LINEAR_PTS)} fill="none" stroke="#c8a830" strokeWidth="1.5" strokeDasharray="5,3" />
-
-      {/* region labels */}
-      <text x={px(0.5)}  y={py(6e-3)}  fill="#c8a830" fontSize="10.5" textAnchor="middle">Linear (Airy)</text>
-      <text x={px(0.28)} y={py(4.5e-2)} fill="#7ab0e0" fontSize="10.5" textAnchor="middle">Stokes 5th order</text>
-      <text x={px(0.065)} y={py(2e-2)} fill="#3ba776" fontSize="9"    textAnchor="middle">cnoidal /</text>
-      <text x={px(0.065)} y={py(2e-2) + 12} fill="#3ba776" fontSize="9" textAnchor="middle">shallow</text>
-      <text x={px(0.22)} y={MT + 12}  fill="#c0504d" fontSize="10"   textAnchor="middle">Breaking</text>
-
-      {/* curve labels */}
-      <text x={px(0.38)} y={py(0.115)} fill="#c0504d" fontSize="8.5" textAnchor="middle">
-        H/L = 0.142·tanh(2π·d/L)
-      </text>
-      <text x={px(0.11)} y={py(1.4e-2)} fill="#3ba776" fontSize="8.5" textAnchor="start">Ur = 30</text>
-      <text x={px(0.62)} y={py(0.026)}  fill="#c8a830" fontSize="8.5" textAnchor="end">πH/L = 0.1</text>
-
-      {/* depth zone labels */}
-      <text x={(ML + px(0.05)) / 2}         y={MT - 8} fill="#4a6080" fontSize="8.5" textAnchor="middle">shallow</text>
-      <text x={(px(0.05) + px(0.5)) / 2}    y={MT - 8} fill="#4a6080" fontSize="8.5" textAnchor="middle">intermediate</text>
-      <text x={(px(0.5) + ML + PW) / 2}     y={MT - 8} fill="#4a6080" fontSize="8.5" textAnchor="middle">deep</text>
-
-      {/* axes box */}
-      <rect x={ML} y={MT} width={PW} height={PH} fill="none" stroke="#2a3a5a" strokeWidth="1.5" />
-
-      {xTicks.map((v) => (
-        <g key={`xt${v}`}>
-          <line x1={px(v)} y1={MT + PH} x2={px(v)} y2={MT + PH + 5} stroke="#3a4a6a" />
-          <text x={px(v)} y={MT + PH + 18} fill="#6e7a93" fontSize="11" textAnchor="middle">
-            {expLabel(Math.round(Math.log10(v)))}
-          </text>
-        </g>
-      ))}
-      {yTicks.map((v) => (
-        <g key={`yt${v}`}>
-          <line x1={ML - 5} y1={py(v)} x2={ML} y2={py(v)} stroke="#3a4a6a" />
-          <text x={ML - 8} y={py(v) + 4} fill="#6e7a93" fontSize="11" textAnchor="end">
-            {expLabel(Math.round(Math.log10(v)))}
-          </text>
-        </g>
-      ))}
-
-      <text x={ML + PW / 2} y={SVG_H - 6} fill="#6e7a93" fontSize="12" textAnchor="middle">d / L</text>
-      <text
-        x={13} y={MT + PH / 2}
-        fill="#6e7a93" fontSize="12" textAnchor="middle"
-        transform={`rotate(-90, 13, ${MT + PH / 2})`}
-      >
-        H / L
-      </text>
-
-      {/* current wave condition dot */}
-      {inPlot && (
-        <g>
-          <line x1={dotX - 9} y1={dotY} x2={dotX + 9} y2={dotY} stroke="#f0c674" strokeWidth="1.5" />
-          <line x1={dotX} y1={dotY - 9} x2={dotX} y2={dotY + 9} stroke="#f0c674" strokeWidth="1.5" />
-          <circle cx={dotX} cy={dotY} r="5" fill="#f0c674" stroke="#0a0e1a" strokeWidth="1.5" />
-        </g>
-      )}
-      {dotX != null && !inPlot && (
-        <text x={ML + PW / 2} y={MT + PH / 2} fill="#f0c674" fontSize="11" textAnchor="middle">
-          (T, H) outside chart range
-        </text>
-      )}
-    </svg>
-  );
-}
+// ── Irregular sea-state reference table ───────────────────────────────
+// Hs and Tp (peak period) representative values per ITTC sea state number.
+// N. Pacific Tp is longer reflecting stronger swell contribution.
+const SEA_STATES = {
+  "N. Atlantic": [
+    { ss: 1, Hs: 0.05,  Tp:  4.0, desc: "Calm (rippled)" },
+    { ss: 2, Hs: 0.30,  Tp:  6.5, desc: "Smooth" },
+    { ss: 3, Hs: 0.90,  Tp:  8.5, desc: "Slight" },
+    { ss: 4, Hs: 1.90,  Tp: 10.0, desc: "Moderate" },
+    { ss: 5, Hs: 3.25,  Tp: 12.0, desc: "Rough" },
+    { ss: 6, Hs: 5.00,  Tp: 13.5, desc: "Very rough" },
+    { ss: 7, Hs: 7.50,  Tp: 15.5, desc: "High" },
+    { ss: 8, Hs: 11.50, Tp: 18.0, desc: "Very high" },
+  ],
+  "N. Pacific": [
+    { ss: 1, Hs: 0.05,  Tp:  4.5, desc: "Calm (rippled)" },
+    { ss: 2, Hs: 0.30,  Tp:  7.5, desc: "Smooth" },
+    { ss: 3, Hs: 0.90,  Tp: 10.0, desc: "Slight" },
+    { ss: 4, Hs: 1.90,  Tp: 12.0, desc: "Moderate" },
+    { ss: 5, Hs: 3.25,  Tp: 14.0, desc: "Rough" },
+    { ss: 6, Hs: 5.00,  Tp: 16.0, desc: "Very rough" },
+    { ss: 7, Hs: 7.50,  Tp: 17.5, desc: "High" },
+    { ss: 8, Hs: 11.50, Tp: 20.0, desc: "Very high" },
+  ],
+};
 
 // ── Styles ────────────────────────────────────────────────────────────
 const S = {
@@ -287,6 +85,37 @@ const S = {
     display: "inline-block", marginTop: 10, padding: "4px 10px", borderRadius: 5,
     fontSize: 11.5, fontWeight: 600, background: "#0b1525", border: "1px solid #2a3a5a",
   },
+  toggleBtn: {
+    background: "none", border: "1px solid #2a3a5a", borderRadius: 6,
+    color: "#8b96ac", padding: "5px 14px", cursor: "pointer",
+    fontSize: 12, fontFamily: "inherit",
+  },
+  toggleBtnActive: {
+    background: "#1a2233", border: "1px solid #6aa9ff66",
+    borderRadius: 6, color: "#e8edf6", padding: "5px 14px",
+    cursor: "pointer", fontSize: 12, fontFamily: "inherit",
+  },
+  ssBtn: {
+    background: "none", border: "1px solid #1e2d44", borderRadius: 5,
+    color: "#6e7a93", padding: "4px 8px", cursor: "pointer",
+    fontSize: 11, fontFamily: "inherit",
+  },
+  ssBtnActive: {
+    background: "#1a2a3a", border: "1px solid #4a7abf",
+    borderRadius: 5, color: "#a0c4ff", padding: "4px 8px",
+    cursor: "pointer", fontSize: 11, fontFamily: "inherit", fontWeight: 600,
+  },
+  scaleRow: {
+    display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 32px",
+    background: "#090d18", borderRadius: 8, padding: "14px 18px",
+    border: "1px solid #1a2844", marginTop: 18,
+  },
+  scaleHead: { fontSize: 10, color: "#4a6080", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 8, gridColumn: "span 2", borderBottom: "1px solid #1a2844", paddingBottom: 6 },
+  scaleLabel: { fontSize: 10, color: "#6e7a93", letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 2 },
+  scaleVal: { fontSize: 16, color: "#6aa9ff", fontWeight: 700 },
+  scaleValModel: { fontSize: 16, color: "#f0c674", fontWeight: 700 },
+  scaleUnit: { fontSize: 11, color: "#4a6080", marginLeft: 3 },
+  formulaNote: { fontSize: 10, color: "#3a4f6a", marginTop: 12, lineHeight: 1.6 },
 };
 
 function Stat({ label, value, unit, note }) {
@@ -302,9 +131,121 @@ function Stat({ label, value, unit, note }) {
   );
 }
 
+function IrregularSection({ ocean, setOcean, ssIdx, setSsIdx, lambda, setLambda, customHs, setCustomHs, customTp, setCustomTp }) {
+  const entry = SEA_STATES[ocean][ssIdx];
+  const lam   = parseFloat(lambda);
+
+  const hsVal = customHs && parseFloat(customHs) > 0 ? parseFloat(customHs) : entry.Hs;
+  const tpVal = customTp && parseFloat(customTp) > 0 ? parseFloat(customTp) : entry.Tp;
+  const valid = lam > 0 && isFinite(lam);
+
+  const modelHs = valid ? hsVal / lam          : null;
+  const modelTp = valid ? tpVal / Math.sqrt(lam) : null;
+
+  const fmt = (v, dec) => v != null ? v.toFixed(dec) : "—";
+
+  return (
+    <div style={S.section}>
+      <div style={S.eyebrow}>Irregular Seas · Froude Scaling</div>
+      <h1 style={S.h1}>Sea state scale conversion</h1>
+
+      {/* ocean selector */}
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ ...S.label, marginBottom: 6 }}>Ocean</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {Object.keys(SEA_STATES).map(o => (
+            <button key={o} style={ocean === o ? S.toggleBtnActive : S.toggleBtn}
+              onClick={() => setOcean(o)}>{o}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* sea state selector */}
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ ...S.label, marginBottom: 6 }}>Sea state</div>
+        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+          {SEA_STATES[ocean].map((e, i) => (
+            <button key={e.ss} style={ssIdx === i ? S.ssBtnActive : S.ssBtn}
+              onClick={() => setSsIdx(i)}>
+              SS{e.ss}
+            </button>
+          ))}
+        </div>
+        <div style={{ fontSize: 10.5, color: "#4a6080", marginTop: 5 }}>
+          {entry.desc} · Hs = {entry.Hs} m, Tp = {entry.Tp} s (full scale reference)
+        </div>
+      </div>
+
+      {/* scale factor */}
+      <div style={{ ...S.inputRow, marginBottom: 18 }}>
+        <div style={S.inputGroup}>
+          <label style={S.label}>Scale factor λ</label>
+          <input style={{ ...S.input, width: 110 }} type="number" min="1" step="1"
+            value={lambda} onChange={e => setLambda(e.target.value)} />
+        </div>
+      </div>
+
+      {/* optional full-scale override */}
+      <div style={{ marginBottom: 4 }}>
+        <div style={{ ...S.label, marginBottom: 6 }}>Full-scale override (optional)</div>
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+          <div style={S.inputGroup}>
+            <label style={S.label}>Hs (m)</label>
+            <input style={{ ...S.input, width: 110 }} type="number" min="0" step="0.1"
+              placeholder={String(entry.Hs)}
+              value={customHs} onChange={e => setCustomHs(e.target.value)} />
+          </div>
+          <div style={S.inputGroup}>
+            <label style={S.label}>Tp (s)</label>
+            <input style={{ ...S.input, width: 110 }} type="number" min="0" step="0.1"
+              placeholder={String(entry.Tp)}
+              value={customTp} onChange={e => setCustomTp(e.target.value)} />
+          </div>
+        </div>
+      </div>
+
+      {/* results */}
+      {valid && (
+        <div style={S.scaleRow}>
+          <div style={S.scaleHead}>Scaled model conditions  (1 : {lam})</div>
+
+          <div>
+            <div style={S.scaleLabel}>Full-scale Hs</div>
+            <div style={S.scaleVal}>{fmt(hsVal, 2)}<span style={S.scaleUnit}>m</span></div>
+          </div>
+          <div>
+            <div style={S.scaleLabel}>Model Hs</div>
+            <div style={S.scaleValModel}>{fmt(modelHs, 4)}<span style={S.scaleUnit}>m</span></div>
+          </div>
+
+          <div>
+            <div style={S.scaleLabel}>Full-scale Tp</div>
+            <div style={S.scaleVal}>{fmt(tpVal, 2)}<span style={S.scaleUnit}>s</span></div>
+          </div>
+          <div>
+            <div style={S.scaleLabel}>Model Tp</div>
+            <div style={S.scaleValModel}>{fmt(modelTp, 3)}<span style={S.scaleUnit}>s</span></div>
+          </div>
+        </div>
+      )}
+
+      <div style={S.formulaNote}>
+        Froude scaling: H<sub>s,m</sub> = H<sub>s</sub> / λ &nbsp;·&nbsp; T<sub>p,m</sub> = T<sub>p</sub> / √λ
+      </div>
+    </div>
+  );
+}
+
 export default function WaveConditions() {
   const [T, setT] = useState("2.0");
   const [H, setH] = useState("0.10");
+
+  // irregular seas state
+  const [ocean,     setOcean]     = useState("N. Atlantic");
+  const [ssIdx,     setSsIdx]     = useState(5); // SS6 default
+  const [lambda,    setLambda]    = useState("50");
+  const [customHs,  setCustomHs]  = useState("");
+  const [customTp,  setCustomTp]  = useState("");
 
   const Tv = parseFloat(T);
   const Hv = parseFloat(H);
@@ -322,7 +263,7 @@ export default function WaveConditions() {
     const steepnessBreak = 0.142 * Math.tanh(2 * PI * dOverL); // Miche (1944)
     const pct = (HoverL / steepnessBreak) * 100;
     const urNumber = HoverL / (dOverL * dOverL * dOverL);       // Ur = HL²/d³
-    const piHoverL = PI * HoverL;                               // kH/2
+    const piHoverL = PI * HoverL;
 
     let depthClass, depthColor;
     if (kh > PI)           { depthClass = "deep water";    depthColor = "#6aa9ff"; }
@@ -335,11 +276,13 @@ export default function WaveConditions() {
     else if (pct < 90) gaugeColor = "#e07830";
     else               gaugeColor = "#c0504d";
 
+    // Le Méhauté (1976) classification
     let theory;
-    if (pct >= 100)                           theory = "breaking";
-    else if (urNumber > 30)                   theory = "cnoidal / shallow water";
-    else if (piHoverL < 0.1 && urNumber < 1) theory = "linear (Airy)";
-    else                                      theory = "Stokes (nonlinear)";
+    if (pct >= 100)                                                  theory = "breaking";
+    else if (urNumber < 26)                                          theory = "linear (Airy)";
+    else if (dOverL > 1/25 && pct < 25)                             theory = "Stokes 2nd order";
+    else if (dOverL > 1/25)                                          theory = "Stokes 3rd / 4th order";
+    else                                                             theory = "cnoidal / stream function";
 
     return { k, L, c, kh, dOverL, HoverL, steepnessBreak, pct,
              depthClass, depthColor, gaugeColor, urNumber, piHoverL, theory };
@@ -404,24 +347,33 @@ export default function WaveConditions() {
         )}
       </div>
 
-      {/* ── Wave theory validity diagram ───────────────────────────── */}
-      {calc && (
-        <div style={S.section}>
-          <div style={S.eyebrow}>Applicable Wave Theory</div>
-          <h1 style={S.h1}>Wave theory validity diagram</h1>
-          <div style={S.diagramTitle}>
-            Axes: relative depth d/L and steepness H/L (d = still-water depth = {H_DEPTH} m).
-            Breaking limit: Miche (1944). Stokes/cnoidal boundary: Ur = HL²/d³ = 30.
-            Linear valid where πH/L &lt; 0.1 and Ur &lt; 1.
-          </div>
-          <WaveTheoryDiagram dOverL={calc.dOverL} HoverL={calc.HoverL} />
+      {/* ── Wavemaker performance figure ──────────────────────────── */}
+      <div style={S.section}>
+        <div style={S.eyebrow}>Wavemaker Performance · d = {H_DEPTH} m</div>
+        <h1 style={S.h1}>Wave height vs period</h1>
+        <div style={S.diagramTitle}>
+          Regular and irregular performance envelopes with breaking limit and depth regime boundaries.
+        </div>
+        <img
+          src={`${import.meta.env.BASE_URL}comparison-wave-regimes.png`}
+          alt="Wavemaker performance envelope"
+          style={{ width: "100%", borderRadius: 8, display: "block" }}
+        />
+        {calc && (
           <div style={S.regionTag}>
             current condition → <span style={{ color: calc.gaugeColor }}>{calc.theory}</span>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* ── Irregular Waves placeholder ───────────────────────────── */}
+      {/* ── Irregular Seas ────────────────────────────────────────── */}
+      <IrregularSection
+        ocean={ocean} setOcean={setOcean}
+        ssIdx={ssIdx} setSsIdx={setSsIdx}
+        lambda={lambda} setLambda={setLambda}
+        customHs={customHs} setCustomHs={setCustomHs}
+        customTp={customTp} setCustomTp={setCustomTp}
+      />
 
     </div>
   );
